@@ -17,34 +17,36 @@
 package org.apache.kafka.common;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * An immutable representation of a subset of the nodes, topics, and partitions in the Kafka cluster.
  */
 public final class Cluster {
 
+    //是否是正常启动加载的
     private final boolean isBootstrapConfigured;
+    //集群中所有broker节点的信息，brokerId，host，port，rack
     private final List<Node> nodes;
+    //未授权的topic
     private final Set<String> unauthorizedTopics;
+    //非法的topic
     private final Set<String> invalidTopics;
+    //内部topic
     private final Set<String> internalTopics;
+    //控制器节点
     private final Node controller;
+    //每一个Topic的分区对应的分区信息：{topic,partition,leader broker的信息，AR broker列表，ISR broker 列表 ，OSR broker 列表}
     private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
+    //Topic:[Partition信息]
     private final Map<String, List<PartitionInfo>> partitionsByTopic;
+    //Topic:[可用的Partition信息]
     private final Map<String, List<PartitionInfo>> availablePartitionsByTopic;
+    //broker节点Id：[分区信息]
     private final Map<Integer, List<PartitionInfo>> partitionsByNode;
+    //broker节点Id ： Broker节点
     private final Map<Integer, Node> nodesById;
+    //包含有kafka集群的唯一id。
     private final ClusterResource clusterResource;
 
     /**

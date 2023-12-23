@@ -16,45 +16,25 @@
  */
 package org.apache.kafka.clients.producer.internals;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.producer.Callback;
-import org.apache.kafka.common.utils.ProducerIdAndEpoch;
-import org.apache.kafka.common.Cluster;
-import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.Node;
-import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.*;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.metrics.Measurable;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
-import org.apache.kafka.common.record.AbstractRecords;
-import org.apache.kafka.common.record.CompressionRatioEstimator;
-import org.apache.kafka.common.record.CompressionType;
-import org.apache.kafka.common.record.MemoryRecords;
-import org.apache.kafka.common.record.MemoryRecordsBuilder;
-import org.apache.kafka.common.record.Record;
-import org.apache.kafka.common.record.RecordBatch;
-import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.common.record.*;
 import org.apache.kafka.common.utils.CopyOnWriteMap;
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.common.utils.ProducerIdAndEpoch;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
+
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class acts as a queue that accumulates records into {@link MemoryRecords}
@@ -66,23 +46,40 @@ import org.slf4j.Logger;
 public final class RecordAccumulator {
 
     private final Logger log;
+    //标志位，表示累加器是否已经关闭
     private volatile boolean closed;
+    //计数器，用于跟踪正在进行的刷新操作的数量。
     private final AtomicInteger flushesInProgress;
+    //计数器，用于跟踪正在进行的追加操作的数量。
     private final AtomicInteger appendsInProgress;
+    //记录批次的大小，即每个批次中消息的数量限制。
     private final int batchSize;
+    //消息的压缩方式。
     private final CompressionType compression;
+    //消息在从消息缓冲区发送出去之前要等待的时间。
     private final int lingerMs;
+    //发生重试时的等待时间。
     private final long retryBackoffMs;
+    //消息投递的超时时间。
     private final int deliveryTimeoutMs;
+    //缓冲池，用于管理可用于内存分配的内存缓冲区。
     private final BufferPool free;
+    //用于管理和获取时间戳。
     private final Time time;
+    //Kafka支持的API版本
     private final ApiVersions apiVersions;
+    //保存生产者批次的映射，按照主题和分区进行存储。
     private final ConcurrentMap<TopicPartition, Deque<ProducerBatch>> batches;
+    //未完成批次的处理器。
     private final IncompleteBatches incomplete;
     // The following variables are only accessed by the sender thread, so we don't need to protect them.
+    //存储被暂停的分区集合。
     private final Set<TopicPartition> muted;
+    //消息发送者线程的专用索引，用于控制消息的发送。
     private int drainIndex;
+    //事务管理器，处理生产者端的事务性操作。
     private final TransactionManager transactionManager;
+    //下一个批次过期时间的绝对时间戳，标志着一个批次消息的最早过期时间。
     private long nextBatchExpiryTimeMs = Long.MAX_VALUE; // the earliest time (absolute) a batch will expire.
 
     /**
@@ -137,6 +134,7 @@ public final class RecordAccumulator {
     private void registerMetrics(Metrics metrics, String metricGrpName) {
         MetricName metricName = metrics.metricName("waiting-threads", metricGrpName, "The number of user threads blocked waiting for buffer memory to enqueue their records");
         Measurable waitingThreads = new Measurable() {
+            @Override
             public double measure(MetricConfig config, long now) {
                 return free.queued();
             }
@@ -145,6 +143,7 @@ public final class RecordAccumulator {
 
         metricName = metrics.metricName("buffer-total-bytes", metricGrpName, "The maximum amount of buffer memory the client can use (whether or not it is currently used).");
         Measurable totalBytes = new Measurable() {
+            @Override
             public double measure(MetricConfig config, long now) {
                 return free.totalMemory();
             }
@@ -153,6 +152,7 @@ public final class RecordAccumulator {
 
         metricName = metrics.metricName("buffer-available-bytes", metricGrpName, "The total amount of buffer memory that is not being used (either unallocated or in the free list).");
         Measurable availableBytes = new Measurable() {
+            @Override
             public double measure(MetricConfig config, long now) {
                 return free.availableMemory();
             }

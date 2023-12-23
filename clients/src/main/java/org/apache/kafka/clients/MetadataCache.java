@@ -16,23 +16,12 @@
  */
 package org.apache.kafka.clients;
 
-import org.apache.kafka.common.Cluster;
-import org.apache.kafka.common.ClusterResource;
-import org.apache.kafka.common.Node;
-import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.*;
 import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.requests.MetadataResponse.PartitionMetadata;
 
 import java.net.InetSocketAddress;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -42,14 +31,22 @@ import java.util.stream.Collectors;
  * instance which is optimized for read access.
  */
 public class MetadataCache {
+    //集群id
     private final String clusterId;
+    //brokerID 和 broker节点：{id,host,port ,rack}
     private final Map<Integer, Node> nodes;
+    //未授权的topic列表
     private final Set<String> unauthorizedTopics;
+    //非法的topic列表
     private final Set<String> invalidTopics;
+    //内部topic列表
     private final Set<String> internalTopics;
+    //控制器节点
     private final Node controller;
+    //TopicPartition: {topicName,partitionId} : PartitionMetadata:{TopicPartition,异常信息，leader副本所在的brokerId，leader的纪元信息，分区的AR集合，分区的ISR集合，分区的OSR集合}
     private final Map<TopicPartition, PartitionMetadata> metadataByPartition;
 
+    //集群元数据信息
     private Cluster clusterInstance;
 
     MetadataCache(String clusterId,

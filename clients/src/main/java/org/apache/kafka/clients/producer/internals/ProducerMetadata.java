@@ -25,19 +25,16 @@ import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public class ProducerMetadata extends Metadata {
     // If a topic hasn't been accessed for this many milliseconds, it is removed from the cache.
+    //控制主题元数据在多长时间内没有访问后将被从缓存中删除。默认情况下是 5 分钟。这个时间用于确定缓存中的主题元数据是否过期，并决定是否需要从集群中重新获取主题的元数据信息。
     private final long metadataIdleMs;
 
-    /* Topics with expiry time */
+    /* 存储了带有过期时间的主题。这是一个 `Map` 类型的数据结构，将主题名与其对应的过期时间进行了关联。 */
     private final Map<String, Long> topics = new HashMap<>();
+    //用于存储新添加的主题集合。这个集合中存储了当前生产者实例中新添加的主题。
     private final Set<String> newTopics = new HashSet<>();
     private final Logger log;
     private final Time time;

@@ -32,15 +32,7 @@ import org.slf4j.Logger;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.apache.kafka.common.record.RecordBatch.NO_PARTITION_LEADER_EPOCH;
@@ -59,20 +51,35 @@ import static org.apache.kafka.common.record.RecordBatch.NO_PARTITION_LEADER_EPO
  */
 public class Metadata implements Closeable {
     private final Logger log;
+    //元数据刷新的退避时间，即在进行元数据刷新的时候，如果失败会等待一段时间后尝试，这个参数表示在多长时间内避免对元数据进行过多的刷新。
     private final long refreshBackoffMs;
+    //元数据的过期时间，表示元数据在多长时间内是有效的。
     private final long metadataExpireMs;
+    //每次接收到元数据响应时增加此版本号。
     private int updateVersion;  // bumped on every metadata response
+    //每次添加新主题时都会增加该版本号
     private int requestVersion; // bumped on every new topic addition
+    //最近一次元数据刷新的时间戳
     private long lastRefreshMs;
+    //最近一次成功刷新元数据的时间戳
     private long lastSuccessfulRefreshMs;
+    //元数据错误记录
     private KafkaException fatalException;
+    //无效的主题
     private Set<String> invalidTopics;
+    //未授权的主题
     private Set<String> unauthorizedTopics;
+    //元数据缓存，初始为空
     private MetadataCache cache = MetadataCache.empty();
+    //表示是否需要进行全量的元数据更新。
     private boolean needFullUpdate;
+    //表示是否需要进行部分元数据的更新。
     private boolean needPartialUpdate;
+    //集群资源监听器，用于监听集群资源的变化。
     private final ClusterResourceListeners clusterResourceListeners;
+    //标识元数据对象是否已经关闭
     private boolean isClosed;
+    //记录每一个分区最后一次leader选举时leader的年代号。
     private final Map<TopicPartition, Integer> lastSeenLeaderEpochs;
 
     /**
