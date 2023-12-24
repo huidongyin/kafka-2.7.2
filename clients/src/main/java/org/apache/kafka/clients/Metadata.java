@@ -111,9 +111,7 @@ public class Metadata implements Closeable {
         this.unauthorizedTopics = Collections.emptySet();
     }
 
-    /**
-     * Get the current cluster info without blocking
-     */
+    //返回当前集群的元数据信息
     public synchronized Cluster fetch() {
         return cache.cluster();
     }
@@ -124,6 +122,7 @@ public class Metadata implements Closeable {
      * @param nowMs current time in ms
      * @return remaining time in ms till the cluster info can be updated again
      */
+    //计算允许更新元数据的时机
     public synchronized long timeToAllowUpdate(long nowMs) {
         return Math.max(this.lastRefreshMs + this.refreshBackoffMs - nowMs, 0);
     }
@@ -136,6 +135,7 @@ public class Metadata implements Closeable {
      * @param nowMs current time in ms
      * @return remaining time in ms till updating the cluster info
      */
+    //计算下一次元数据更新的时间
     public synchronized long timeToNextUpdate(long nowMs) {
         long timeToExpire = updateRequested() ? 0 : Math.max(this.lastSuccessfulRefreshMs + this.metadataExpireMs - nowMs, 0);
         return Math.max(timeToExpire, timeToAllowUpdate(nowMs));
@@ -148,16 +148,23 @@ public class Metadata implements Closeable {
     /**
      * Request an update of the current cluster metadata info, return the current updateVersion before the update
      */
+    //请求更新元数据
     public synchronized int requestUpdate() {
+        //设置成需要全量更新，并返回上次元数据更新响应对应的版本号。
         this.needFullUpdate = true;
         return this.updateVersion;
     }
 
+    //发起更新新topic的请求
     public synchronized int requestUpdateForNewTopics() {
         // Override the timestamp of last refresh to let immediate update.
+        //将上一次修改时间设置成0去触发立即更新。
         this.lastRefreshMs = 0;
+        //设置为需要部分更新
         this.needPartialUpdate = true;
+        //添加新主题的版本号+1
         this.requestVersion++;
+        //返回每次接收到元数据响应时增加的版本号。
         return this.updateVersion;
     }
 
@@ -204,6 +211,7 @@ public class Metadata implements Closeable {
      *
      * @return true if an update was requested, false otherwise
      */
+    //判断这两个标识是否为true
     public synchronized boolean updateRequested() {
         return this.needFullUpdate || this.needPartialUpdate;
     }
@@ -234,9 +242,13 @@ public class Metadata implements Closeable {
         return new LeaderAndEpoch(leaderNodeOpt, leaderEpochOpt);
     }
 
+    //初始化
     public synchronized void bootstrap(List<InetSocketAddress> addresses) {
+        //需要全量更新
         this.needFullUpdate = true;
+        //修改 更新版本
         this.updateVersion += 1;
+        //初始化 MetadataCache
         this.cache = MetadataCache.bootstrap(addresses);
     }
 
@@ -263,19 +275,24 @@ public class Metadata implements Closeable {
         Objects.requireNonNull(response, "Metadata response cannot be null");
         if (isClosed())
             throw new IllegalStateException("Update requested after metadata close");
-
+        //是否是部分主题更新标记
         this.needPartialUpdate = requestVersion < this.requestVersion;
+        //最后一次更新元数据的时间为当前时间
         this.lastRefreshMs = nowMs;
+        //元数据版本号+1
         this.updateVersion += 1;
+        //如果是全量更新
         if (!isPartialUpdate) {
+            //设置全量更新状态位 = false
             this.needFullUpdate = false;
+            //设置上一次成功更新全部主题的时间为当前时间
             this.lastSuccessfulRefreshMs = nowMs;
         }
-
+        //更新前的集群id
         String previousClusterId = cache.clusterResource().clusterId();
-
+        //将元数据请求的响应数据解析到生产者客户端的元数据缓存
         this.cache = handleMetadataResponse(response, isPartialUpdate, nowMs);
-
+        //获取缓存中的集群元信息
         Cluster cluster = cache.cluster();
         maybeSetMetadataError(cluster);
 
@@ -464,6 +481,7 @@ public class Metadata implements Closeable {
      * to avoid retrying immediately.
      */
     public synchronized void failedUpdate(long now) {
+        //记录上一次刷新时间为当前时间
         this.lastRefreshMs = now;
     }
 

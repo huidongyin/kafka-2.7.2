@@ -43,6 +43,11 @@ public class SystemTime implements Time {
 
     @Override
     public void waitObject(Object obj, Supplier<Boolean> condition, long deadlineMs) throws InterruptedException {
+        //这里对生产者元数据加锁
+        //自旋
+        //  如果元数据更新完了，直接返回
+        //  否则获取当前时间，如果当前时间>=截止时间，那就抛出超时异常
+        //  让需要获取元数据信息的业务线程阻塞等待
         synchronized (obj) {
             while (true) {
                 if (condition.get())

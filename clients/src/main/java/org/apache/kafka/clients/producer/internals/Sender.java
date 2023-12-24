@@ -16,25 +16,12 @@
  */
 package org.apache.kafka.clients.producer.internals;
 
-import org.apache.kafka.clients.ApiVersions;
-import org.apache.kafka.clients.ClientRequest;
-import org.apache.kafka.clients.ClientResponse;
-import org.apache.kafka.clients.KafkaClient;
-import org.apache.kafka.clients.Metadata;
-import org.apache.kafka.clients.NetworkClientUtils;
-import org.apache.kafka.clients.RequestCompletionHandler;
+import org.apache.kafka.clients.*;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.AuthenticationException;
-import org.apache.kafka.common.errors.ClusterAuthorizationException;
-import org.apache.kafka.common.errors.InvalidMetadataException;
-import org.apache.kafka.common.errors.RetriableException;
-import org.apache.kafka.common.errors.TimeoutException;
-import org.apache.kafka.common.errors.TopicAuthorizationException;
-import org.apache.kafka.common.errors.TransactionAbortedException;
-import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
+import org.apache.kafka.common.errors.*;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.metrics.stats.Max;
@@ -42,23 +29,13 @@ import org.apache.kafka.common.metrics.stats.Meter;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.common.record.RecordBatch;
-import org.apache.kafka.common.requests.AbstractRequest;
-import org.apache.kafka.common.requests.FindCoordinatorRequest;
-import org.apache.kafka.common.requests.ProduceRequest;
-import org.apache.kafka.common.requests.ProduceResponse;
-import org.apache.kafka.common.requests.RequestHeader;
+import org.apache.kafka.common.requests.*;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import static org.apache.kafka.common.record.RecordBatch.NO_TIMESTAMP;
 
@@ -235,8 +212,10 @@ public class Sender implements Runnable {
         log.debug("Starting Kafka producer I/O thread.");
 
         // main loop, runs until close is called
+        //running ： 表示当前线程是否正常执行
         while (running) {
             try {
+                //如果正常执行，则执行运行周期
                 runOnce();
             } catch (Exception e) {
                 log.error("Uncaught error in kafka producer I/O thread: ", e);
@@ -293,6 +272,7 @@ public class Sender implements Runnable {
      *
      */
     void runOnce() {
+        //事务相关
         if (transactionManager != null) {
             try {
                 transactionManager.maybeResolveSequences();
@@ -320,26 +300,32 @@ public class Sender implements Runnable {
             }
         }
 
+        //获取当前时间
         long currentTimeMs = time.milliseconds();
+        //创建发送到kafka集群的请求
         long pollTimeout = sendProducerData(currentTimeMs);
+        //真正执行网络IO的地方，会将请求发送出去，并处理收到的响应
         client.poll(pollTimeout, currentTimeMs);
     }
 
     private long sendProducerData(long now) {
+        //从元数据缓存中获取元数据
         Cluster cluster = metadata.fetch();
-        // get the list of partitions with data ready to send
+        // 通过集群元数据获取要发送Leader分区的节点信息
         RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
 
-        // if there are any partitions whose leaders are not known yet, force metadata update
+        //如果主题的Leader分区对应的节点不存在就强制更新元数据
         if (!result.unknownLeaderTopics.isEmpty()) {
             // The set of topics with unknown leader contains topics with leader election pending as well as
             // topics which may have expired. Add the topic again to metadata to ensure it is included
             // and request metadata update, since there are messages to send to the topic.
             for (String topic : result.unknownLeaderTopics)
+                //将主题加入到元数据主题列表
                 this.metadata.add(topic, now);
 
             log.debug("Requesting metadata update due to unknown leader topics from the batched records: {}",
                 result.unknownLeaderTopics);
+            //强制标记元数据更新标识
             this.metadata.requestUpdate();
         }
 
